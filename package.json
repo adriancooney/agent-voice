@@ -21,7 +21,8 @@
 		"check": "biome check --write .",
 		"typecheck": "tsc --noEmit",
 		"test": "dotenv -e .env.local -- vitest run",
-		"test:watch": "dotenv -e .env.local -- vitest"
+		"test:watch": "dotenv -e .env.local -- vitest",
+		"release": "pnpm build && changeset publish"
 	},
 	"dependencies": {
 		"@inquirer/prompts": "^8.2.0",
@@ -32,6 +33,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
+		"@changesets/cli": "^2.29.8",
 		"@types/node": "^22.12.0",
 		"@types/ws": "^8.5.14",
 		"dotenv-cli": "^11.0.0",
