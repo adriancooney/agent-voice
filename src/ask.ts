@@ -4,12 +4,14 @@ import {
 	createAudioPlayer,
 	createAudioRecorder,
 } from "./audio.js";
+import type { AuthConfig } from "./config.js";
 import { createRealtimeSession } from "./realtime.js";
 
 export type AskOptions = {
 	voice?: string;
 	timeout?: number;
 	ack?: boolean;
+	auth?: AuthConfig;
 	createPlayer?: () => AudioPlayer;
 	createRecorder?: () => AudioRecorder;
 };
@@ -22,6 +24,7 @@ export async function ask(
 		voice = "ash",
 		timeout = 30,
 		ack = false,
+		auth,
 		createPlayer = createAudioPlayer,
 		createRecorder = createAudioRecorder,
 	} = options;
@@ -57,6 +60,7 @@ export async function ask(
 			voice,
 			mode: "default",
 			ack,
+			auth,
 			onAudioDelta(pcm16) {
 				player.write(pcm16);
 			},

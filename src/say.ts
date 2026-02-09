@@ -1,8 +1,10 @@
 import { type AudioPlayer, createAudioPlayer } from "./audio.js";
+import type { AuthConfig } from "./config.js";
 import { createRealtimeSession } from "./realtime.js";
 
 export type SayOptions = {
 	voice?: string;
+	auth?: AuthConfig;
 	createPlayer?: () => AudioPlayer;
 };
 
@@ -10,7 +12,7 @@ export async function say(
 	message: string,
 	options: SayOptions = {},
 ): Promise<void> {
-	const { voice = "ash", createPlayer = createAudioPlayer } = options;
+	const { voice = "ash", auth, createPlayer = createAudioPlayer } = options;
 
 	const player = createPlayer();
 	player.start();
@@ -28,6 +30,7 @@ export async function say(
 			voice,
 			mode: "say",
 			ack: false,
+			auth,
 			onAudioDelta(pcm16) {
 				player.write(pcm16);
 			},

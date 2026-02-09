@@ -24,6 +24,7 @@
 		"test:watch": "dotenv -e .env.local -- vitest"
 	},
 	"dependencies": {
+		"@inquirer/prompts": "^8.2.0",
 		"commander": "^13.1.0",
 		"naudiodon2": "^2.1.0",
 		"openai": "^4.96.0",

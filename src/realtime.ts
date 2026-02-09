@@ -1,4 +1,5 @@
 import { OpenAIRealtimeWS } from "openai/beta/realtime/ws";
+import type { AuthConfig } from "./config.js";
 import type { Mode } from "./types.js";
 
 const SYSTEM_INSTRUCTIONS = `
@@ -20,6 +21,7 @@ export type RealtimeSessionOptions = {
 	voice: string;
 	mode: Mode;
 	ack: boolean;
+	auth?: AuthConfig;
 	onAudioDelta: (pcm16: Buffer) => void;
 	onTranscript: (text: string) => void;
 	onSpeechStarted: () => void;
@@ -96,9 +98,13 @@ export function createRealtimeSession(
 	return {
 		connect() {
 			return new Promise<void>((resolve, reject) => {
-				rt = new OpenAIRealtimeWS({
-					model: "gpt-4o-realtime-preview",
-				});
+				const client = options.auth
+					? {
+							apiKey: options.auth.apiKey,
+							baseURL: options.auth.baseUrl ?? "https://api.openai.com/v1",
+						}
+					: undefined;
+				rt = new OpenAIRealtimeWS({ model: "gpt-4o-realtime-preview" }, client);
 
 				rt.socket.on("open", () => {
 					configureSession();

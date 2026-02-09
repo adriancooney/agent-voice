@@ -15,6 +15,7 @@ function writeResult(text: string) {
 // Now safe to import modules that load native addons
 const { ask } = await import("./ask.js");
 const { say } = await import("./say.js");
+const { resolveAuth } = await import("./config.js");
 const { version } = await import("../package.json", {
 	with: { type: "json" },
 });
@@ -42,6 +43,20 @@ const program = new Command()
 	.description("AI agent voice interaction CLI");
 
 program
+	.command("auth")
+	.description("Configure API key and base URL")
+	.action(async () => {
+		try {
+			const { auth } = await import("./auth.js");
+			await auth();
+			process.exit(0);
+		} catch (err: unknown) {
+			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
+			process.exit(1);
+		}
+	});
+
+program
 	.command("ask")
 	.description("Speak a message and listen for a response")
 	.option("-m, --message <text>", "Text message to speak")
@@ -50,11 +65,13 @@ program
 	.option("--ack", "Speak an acknowledgment after the user responds")
 	.action(async (opts) => {
 		try {
+			const auth = resolveAuth();
 			const message = await getMessage(opts.message);
 			const transcript = await ask(message, {
 				voice: opts.voice,
 				timeout: Number.parseInt(opts.timeout, 10),
 				ack: opts.ack ?? false,
+				auth,
 			});
 			writeResult(transcript);
 			process.exit(0);
@@ -71,18 +88,14 @@ program
 	.option("--voice <name>", "OpenAI voice", "ash")
 	.action(async (opts) => {
 		try {
+			const auth = resolveAuth();
 			const message = await getMessage(opts.message);
-			await say(message, { voice: opts.voice });
+			await say(message, { voice: opts.voice, auth });
 			process.exit(0);
 		} catch (err: unknown) {
 			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
 			process.exit(1);
 		}
 	});
-
-if (!process.env.OPENAI_API_KEY) {
-	process.stderr.write("OPENAI_API_KEY environment variable is required\n");
-	process.exit(1);
-}
 
 program.parse();
