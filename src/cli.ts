@@ -44,10 +44,17 @@ const program = new Command()
 program
 	.command("auth")
 	.description("Configure API key and base URL")
-	.action(async () => {
+	.option("--api-url <url>", "Base URL for the API")
+	.option("--api-key <key>", "API key")
+	.option("--no-verify", "Skip API key verification")
+	.action(async (opts) => {
 		try {
 			const { auth } = await import("./auth.js");
-			await auth();
+			await auth({
+				apiUrl: opts.apiUrl,
+				apiKey: opts.apiKey,
+				noVerify: !opts.verify,
+			});
 			process.exit(0);
 		} catch (err: unknown) {
 			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);

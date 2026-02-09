@@ -46,7 +46,7 @@ export function createRealtimeSession(
 	function configureSession() {
 		const turnDetection =
 			options.mode === "say"
-				? null
+				? undefined
 				: {
 						type: "semantic_vad" as const,
 						eagerness: "medium" as const,
