@@ -1,5 +1,11 @@
 # agent-voice
 
+## 0.1.2
+
+### Patch Changes
+
+- Fix auth and voices commands hanging due to global stdout suppression
+
 ## 0.1.1
 
 ### Patch Changes
