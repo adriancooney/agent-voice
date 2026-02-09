@@ -37,7 +37,8 @@ async function getMessage(flag: string | undefined): Promise<string> {
 
 const program = new Command()
 	.name("agent-voice")
-	.description("AI agent voice interaction CLI");
+	.description("AI agent voice interaction CLI")
+	.configureOutput({ writeOut: (str) => process.stderr.write(str) });
 
 program
 	.command("auth")
