@@ -1,24 +1,26 @@
 import { closeSync, openSync, writeSync } from "node:fs";
 import { Command } from "commander";
+import { resolveAuth, resolveVoice, writeVoiceConfig } from "./config.js";
+import { VOICES } from "./types.js";
 
-// Save original stdout fd and redirect C-level stdout (fd 1) to /dev/null
-// before native modules load, so PortAudio's printf noise is suppressed.
-const savedStdoutFd = openSync("/dev/fd/1", "w");
-closeSync(1);
-openSync("/dev/null", "w"); // fd 1 now points to /dev/null
+// Redirect C-level stdout (fd 1) to /dev/null so PortAudio's printf noise
+// is suppressed, then dynamically import audio-dependent modules.
+// Returns a writeResult function that writes to the real stdout.
+async function withSuppressedStdout() {
+	const savedFd = openSync("/dev/fd/1", "w");
+	closeSync(1);
+	openSync("/dev/null", "w"); // fd 1 now points to /dev/null
 
-function writeResult(text: string) {
-	writeSync(savedStdoutFd, `${text}\n`);
-	closeSync(savedStdoutFd);
+	const { ask } = await import("./ask.js");
+	const { say } = await import("./say.js");
+
+	function writeResult(text: string) {
+		writeSync(savedFd, `${text}\n`);
+		closeSync(savedFd);
+	}
+
+	return { ask, say, writeResult };
 }
-
-// Now safe to import modules that load native addons
-const { ask } = await import("./ask.js");
-const { say } = await import("./say.js");
-const { resolveAuth, resolveVoice, writeVoiceConfig } = await import(
-	"./config.js"
-);
-const { VOICES } = await import("./types.js");
 async function readStdin(): Promise<string> {
 	if (process.stdin.isTTY) return "";
 	const chunks: Buffer[] = [];
@@ -37,8 +39,7 @@ async function getMessage(flag: string | undefined): Promise<string> {
 
 const program = new Command()
 	.name("agent-voice")
-	.description("AI agent voice interaction CLI")
-	.configureOutput({ writeOut: (str) => process.stderr.write(str) });
+	.description("AI agent voice interaction CLI");
 
 program
 	.command("auth")
@@ -63,7 +64,7 @@ const voicesCmd = program
 voicesCmd.action(() => {
 	for (const v of VOICES) {
 		const marker = v === defaultVoice ? " (default)" : "";
-		process.stderr.write(`${v}${marker}\n`);
+		process.stdout.write(`${v}${marker}\n`);
 	}
 	process.exit(0);
 });
@@ -79,7 +80,7 @@ voicesCmd
 			process.exit(1);
 		}
 		writeVoiceConfig(voice);
-		process.stderr.write(`Default voice set to "${voice}".\n`);
+		process.stdout.write(`Default voice set to "${voice}".\n`);
 		process.exit(0);
 	});
 
@@ -92,6 +93,7 @@ program
 	.option("--ack", "Speak an acknowledgment after the user responds")
 	.action(async (opts) => {
 		try {
+			const { ask, writeResult } = await withSuppressedStdout();
 			const auth = resolveAuth();
 			const message = await getMessage(opts.message);
 			const transcript = await ask(message, {
@@ -115,6 +117,7 @@ program
 	.option("--voice <name>", "OpenAI voice", defaultVoice)
 	.action(async (opts) => {
 		try {
+			const { say } = await withSuppressedStdout();
 			const auth = resolveAuth();
 			const message = await getMessage(opts.message);
 			await say(message, { voice: opts.voice, auth });
