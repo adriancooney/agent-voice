@@ -6,6 +6,7 @@ import {
 } from "./audio.js";
 import type { AuthConfig } from "./config.js";
 import { createRealtimeSession } from "./realtime.js";
+import { DEFAULT_VOICE } from "./types.js";
 
 export type AskOptions = {
 	voice?: string;
@@ -21,7 +22,7 @@ export async function ask(
 	options: AskOptions = {},
 ): Promise<string> {
 	const {
-		voice = "ash",
+		voice = DEFAULT_VOICE,
 		timeout = 30,
 		ack = false,
 		auth,

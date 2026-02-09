@@ -1,6 +1,7 @@
 import { type AudioPlayer, createAudioPlayer } from "./audio.js";
 import type { AuthConfig } from "./config.js";
 import { createRealtimeSession } from "./realtime.js";
+import { DEFAULT_VOICE } from "./types.js";
 
 export type SayOptions = {
 	voice?: string;
@@ -12,7 +13,11 @@ export async function say(
 	message: string,
 	options: SayOptions = {},
 ): Promise<void> {
-	const { voice = "ash", auth, createPlayer = createAudioPlayer } = options;
+	const {
+		voice = DEFAULT_VOICE,
+		auth,
+		createPlayer = createAudioPlayer,
+	} = options;
 
 	const player = createPlayer();
 	player.start();

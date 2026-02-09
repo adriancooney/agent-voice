@@ -1,11 +1,11 @@
 import { closeSync, openSync, writeSync } from "node:fs";
 import { Command } from "commander";
 
-// Save original stdout fd and redirect C-level stdout (fd 1) to stderr
-// before native modules load, so PortAudio's printf noise goes to stderr.
+// Save original stdout fd and redirect C-level stdout (fd 1) to /dev/null
+// before native modules load, so PortAudio's printf noise is suppressed.
 const savedStdoutFd = openSync("/dev/fd/1", "w");
 closeSync(1);
-openSync("/dev/fd/2", "w"); // fd 1 now points to stderr
+openSync("/dev/null", "w"); // fd 1 now points to /dev/null
 
 function writeResult(text: string) {
 	writeSync(savedStdoutFd, `${text}\n`);
@@ -15,11 +15,10 @@ function writeResult(text: string) {
 // Now safe to import modules that load native addons
 const { ask } = await import("./ask.js");
 const { say } = await import("./say.js");
-const { resolveAuth } = await import("./config.js");
-const { version } = await import("../package.json", {
-	with: { type: "json" },
-});
-
+const { resolveAuth, resolveVoice, writeVoiceConfig } = await import(
+	"./config.js"
+);
+const { VOICES } = await import("./types.js");
 async function readStdin(): Promise<string> {
 	if (process.stdin.isTTY) return "";
 	const chunks: Buffer[] = [];
@@ -35,8 +34,6 @@ async function getMessage(flag: string | undefined): Promise<string> {
 	if (stdin) return stdin;
 	throw new Error("No message provided. Use -m or pipe via stdin.");
 }
-
-process.stderr.write(`agent-voice v${version}\n`);
 
 const program = new Command()
 	.name("agent-voice")
@@ -56,11 +53,40 @@ program
 		}
 	});
 
+const defaultVoice = resolveVoice();
+
+const voicesCmd = program
+	.command("voices")
+	.description("List available voices");
+
+voicesCmd.action(() => {
+	for (const v of VOICES) {
+		const marker = v === defaultVoice ? " (default)" : "";
+		process.stderr.write(`${v}${marker}\n`);
+	}
+	process.exit(0);
+});
+
+voicesCmd
+	.command("set <voice>")
+	.description("Set the default voice")
+	.action((voice: string) => {
+		if (!VOICES.includes(voice as (typeof VOICES)[number])) {
+			process.stderr.write(
+				`Unknown voice "${voice}". Available: ${VOICES.join(", ")}\n`,
+			);
+			process.exit(1);
+		}
+		writeVoiceConfig(voice);
+		process.stderr.write(`Default voice set to "${voice}".\n`);
+		process.exit(0);
+	});
+
 program
 	.command("ask")
 	.description("Speak a message and listen for a response")
 	.option("-m, --message <text>", "Text message to speak")
-	.option("--voice <name>", "OpenAI voice", "ash")
+	.option("--voice <name>", "OpenAI voice", defaultVoice)
 	.option("--timeout <seconds>", "Seconds to wait for user speech", "30")
 	.option("--ack", "Speak an acknowledgment after the user responds")
 	.action(async (opts) => {
@@ -85,7 +111,7 @@ program
 	.command("say")
 	.description("Speak a message without listening for a response")
 	.option("-m, --message <text>", "Text message to speak")
-	.option("--voice <name>", "OpenAI voice", "ash")
+	.option("--voice <name>", "OpenAI voice", defaultVoice)
 	.action(async (opts) => {
 		try {
 			const auth = resolveAuth();

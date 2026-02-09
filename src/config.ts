@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { DEFAULT_VOICE } from "./types.js";
 
 export type AuthConfig = {
 	apiKey: string;
@@ -9,6 +10,7 @@ export type AuthConfig = {
 
 export type Config = {
 	auth?: AuthConfig;
+	voice?: string;
 };
 
 const CONFIG_DIR = join(homedir(), ".agent-voice");
@@ -43,4 +45,19 @@ export function resolveAuth(): AuthConfig {
 	throw new Error(
 		"No API key found. Run `agent-voice auth` or set OPENAI_API_KEY.",
 	);
+}
+
+export function writeVoiceConfig(voice: string): void {
+	const config = readConfig();
+	config.voice = voice;
+	mkdirSync(CONFIG_DIR, { recursive: true });
+	writeFileSync(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, {
+		mode: 0o600,
+	});
+	chmodSync(CONFIG_PATH, 0o600);
+}
+
+export function resolveVoice(): string {
+	const config = readConfig();
+	return config.voice ?? DEFAULT_VOICE;
 }
