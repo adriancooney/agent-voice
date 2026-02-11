@@ -5,6 +5,7 @@ import {
 	createAudioRecorder,
 } from "./audio.js";
 import type { AuthConfig } from "./config.js";
+import { createEchoCanceller } from "./echo-canceller.js";
 import { createRealtimeSession } from "./realtime.js";
 import { DEFAULT_VOICE } from "./types.js";
 
@@ -33,11 +34,16 @@ export async function ask(
 	const player = createPlayer();
 	player.start();
 
+	const echoCanceller = createEchoCanceller();
+
 	return new Promise<string>((resolve, reject) => {
 		let recorder: AudioRecorder | null = null;
+		let recorderStarted = false;
 		let transcript = "";
 		let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
 		let speechDetected = false;
+		let initialResponseDone = false;
+		let interrupted = false;
 		let cleaned = false;
 		let resolved = false;
 
@@ -57,13 +63,30 @@ export async function ask(
 			cleanup().then(() => resolve(transcript));
 		}
 
+		function startRecorder() {
+			if (recorderStarted) return;
+			recorderStarted = true;
+
+			recorder = createRecorder();
+			recorder.onData((pcm16) => {
+				const cleaned = echoCanceller.capture(pcm16);
+				for (const frame of cleaned) {
+					session.sendAudio(frame);
+				}
+			});
+			recorder.start();
+		}
+
 		const session = createRealtimeSession({
 			voice,
 			mode: "default",
 			ack,
 			auth,
 			onAudioDelta(pcm16) {
+				echoCanceller.playback(pcm16);
 				player.write(pcm16);
+				// Start recorder once we know audio output is flowing
+				startRecorder();
 			},
 			onTranscript(text) {
 				transcript = text;
@@ -75,16 +98,15 @@ export async function ask(
 					clearTimeout(timeoutTimer);
 					timeoutTimer = null;
 				}
+
+				// Barge-in: if speech detected while TTS is still playing, interrupt
+				if (!initialResponseDone) {
+					interrupted = true;
+					player.close();
+				}
 			},
 			onInitialResponseDone() {
-				// Delay mic start to let speaker buffer drain and avoid echo
-				setTimeout(() => {
-					recorder = createRecorder();
-					recorder.onData((pcm16) => {
-						session.sendAudio(pcm16);
-					});
-					recorder.start();
-				}, 500);
+				initialResponseDone = true;
 
 				timeoutTimer = setTimeout(() => {
 					if (!speechDetected) {

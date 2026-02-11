@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@agent-voice/aec':
+        specifier: link:/Users/adrian/code/agent-voice-aec
+        version: link:../agent-voice-aec
       '@inquirer/prompts':
         specifier: ^8.2.0
         version: 8.2.0(@types/node@22.19.10)

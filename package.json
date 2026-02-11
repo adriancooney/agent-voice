@@ -26,6 +26,7 @@
 		"release": "pnpm build && changeset publish"
 	},
 	"dependencies": {
+		"@agent-voice/aec": "link:../agent-voice-aec",
 		"@inquirer/prompts": "^8.2.0",
 		"commander": "^13.1.0",
 		"naudiodon2": "^2.1.0",
