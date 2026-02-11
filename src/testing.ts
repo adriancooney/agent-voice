@@ -145,3 +145,47 @@ export function createFakeRecorder(
 		};
 	};
 }
+
+export function createDelayedFakeRecorder(
+	audio: Buffer,
+	delayMs: number,
+	chunkInterval = 50,
+): () => AudioRecorder {
+	return () => {
+		let cb: ((pcm16: Buffer) => void) | null = null;
+		let timer: ReturnType<typeof setInterval> | null = null;
+		let delayTimer: ReturnType<typeof setTimeout> | null = null;
+
+		return {
+			onData(callback: (pcm16: Buffer) => void) {
+				cb = callback;
+			},
+			start() {
+				delayTimer = setTimeout(() => {
+					const bytesPerChunk = SAMPLE_RATE * 2 * (chunkInterval / 1000);
+					let offset = 0;
+
+					timer = setInterval(() => {
+						if (!cb || offset >= audio.length) {
+							if (timer) clearInterval(timer);
+							const silence = createSilence(2);
+							cb?.(silence);
+							return;
+						}
+						const end = Math.min(offset + bytesPerChunk, audio.length);
+						cb(audio.subarray(offset, end));
+						offset = end;
+					}, chunkInterval);
+				}, delayMs);
+			},
+			stop() {
+				if (delayTimer) clearTimeout(delayTimer);
+				if (timer) clearInterval(timer);
+			},
+			close() {
+				if (delayTimer) clearTimeout(delayTimer);
+				if (timer) clearInterval(timer);
+			},
+		};
+	};
+}
