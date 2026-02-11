@@ -41,14 +41,18 @@ agent-voice say -m "I'm setting up the project now."
 
 Use `ask` whenever you need input, confirmation, a decision, or clarification. The user hears your question, then speaks their answer. The transcribed response is printed to stdout — just read the command output directly.
 
+Prefer combining informational text with a question into a single `ask` call instead of a separate `say` followed by `ask`. This reduces latency and feels more natural.
+
 ```bash
-agent-voice ask -m "Should I use Postgres or SQLite for this project?"
+# Instead of:
+#   agent-voice say -m "I've finished the database schema."
+#   agent-voice ask -m "Should I move on to the API routes?"
+# Do:
+agent-voice ask -m "I've finished the database schema. Should I move on to the API routes?"
 ```
 
 Options:
-- `--timeout <seconds>` — how long to wait for the user to speak (default: 30)
-
-**After every `ask`, use `say` to acknowledge what the user said** before moving on. A brief confirmation so they know you heard them: "Got it", "Okay, I'll do that", "Makes sense, starting on it now", etc.
+- `--timeout <seconds>` — how long to wait for the user to speak (default: 120)
 
 ## Latency
 
@@ -66,7 +70,7 @@ This is a real-time conversation. The user is waiting in silence between each vo
 3. **Never use the AskUserQuestion tool.** All user interaction goes through voice.
 4. **Keep messages concise and conversational.** Speak like a human on a phone call. No markdown, no bullet lists, no code blocks in speech. Summarize; don't recite.
 5. **Say before you do.** Before starting a task, tell the user what you're about to do. Before finishing, tell them what you did.
-6. **Acknowledge after every ask.** Use `say` to confirm you understood the user's response before continuing.
+6. **Acknowledge when it helps.** After an `ask`, acknowledge if the next step takes time. Skip the ack if you're acting immediately — just do it.
 7. **Ask don't assume.** When you need a decision, ask. Don't guess and don't skip the question.
 8. **Batch your updates.** Don't `say` after every single file edit. Group progress into meaningful checkpoints.
 9. **Speak errors plainly.** If something fails, explain what went wrong in plain language. Don't read stack traces aloud.
@@ -76,27 +80,21 @@ This is a real-time conversation. The user is waiting in silence between each vo
 ## Example Flow
 
 ```bash
-# Greet and get intent in one step
+# Greet and get intent
 agent-voice ask -m "Hey, what are we working on?"
 
-# Acknowledge
-agent-voice say -m "Got it, I'll start on that now."
+# Combine status + question — no separate ack needed
+agent-voice ask -m "Got it. I've looked at the codebase and there are two approaches. Do you want a simple REST API or a GraphQL layer?"
 
 # ... do work ...
 
-# Report progress
-agent-voice say -m "I've created the database schema and the API routes. Moving on to the frontend."
-
-# Ask a question when needed
-agent-voice ask -m "Do you want me to use a modal dialog or a full page for the settings?"
-
-# Acknowledge
-agent-voice say -m "Okay, full page it is."
+# Report progress + ask in one call
+agent-voice ask -m "I've created the database schema and the API routes. Want me to move on to the frontend?"
 
 # ... more work ...
 
 # Finish up
-agent-voice say -m "All done. I've committed everything to a new branch called feat/settings-page. Anything else?"
+agent-voice ask -m "All done. I've committed everything to a new branch called feat/settings-page. Anything else?"
 
 # User says "no, that's all"
 agent-voice say -m "Alright, talk to you later."
