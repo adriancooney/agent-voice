@@ -3,23 +3,31 @@ import { Command } from "commander";
 import { resolveAuth, resolveVoice, writeVoiceConfig } from "./config.js";
 import { VOICES } from "./types.js";
 
-// Redirect C-level stdout (fd 1) to /dev/null so PortAudio's printf noise
-// is suppressed, then dynamically import audio-dependent modules.
+// Redirect C-level stdout (fd 1) and stderr (fd 2) to /dev/null so
+// PortAudio's printf noise and SpeexDSP warnings are suppressed,
+// then dynamically import audio-dependent modules.
 // Returns a writeResult function that writes to the real stdout.
-async function withSuppressedStdout() {
-	const savedFd = openSync("/dev/fd/1", "w");
+async function withSuppressedNativeOutput() {
+	const savedStdout = openSync("/dev/fd/1", "w");
+	const savedStderr = openSync("/dev/fd/2", "w");
 	closeSync(1);
 	openSync("/dev/null", "w"); // fd 1 now points to /dev/null
+	closeSync(2);
+	openSync("/dev/null", "w"); // fd 2 now points to /dev/null
 
 	const { ask } = await import("./ask.js");
 	const { say } = await import("./say.js");
 
 	function writeResult(text: string) {
-		writeSync(savedFd, `${text}\n`);
-		closeSync(savedFd);
+		writeSync(savedStdout, `${text}\n`);
+		closeSync(savedStdout);
 	}
 
-	return { ask, say, writeResult };
+	function writeError(text: string) {
+		writeSync(savedStderr, `${text}\n`);
+	}
+
+	return { ask, say, writeResult, writeError };
 }
 async function readStdin(): Promise<string> {
 	if (process.stdin.isTTY) return "";
@@ -96,11 +104,11 @@ program
 	.description("Speak a message and listen for a response")
 	.option("-m, --message <text>", "Text message to speak")
 	.option("--voice <name>", "OpenAI voice", defaultVoice)
-	.option("--timeout <seconds>", "Seconds to wait for user speech", "30")
+	.option("--timeout <seconds>", "Seconds to wait for user speech", "120")
 	.option("--ack", "Speak an acknowledgment after the user responds")
 	.action(async (opts) => {
+		const { ask, writeResult, writeError } = await withSuppressedNativeOutput();
 		try {
-			const { ask, writeResult } = await withSuppressedStdout();
 			const auth = resolveAuth();
 			const message = await getMessage(opts.message);
 			const transcript = await ask(message, {
@@ -112,7 +120,7 @@ program
 			writeResult(transcript);
 			process.exit(0);
 		} catch (err: unknown) {
-			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
+			writeError(`${err instanceof Error ? err.message : err}`);
 			process.exit(1);
 		}
 	});
@@ -123,14 +131,14 @@ program
 	.option("-m, --message <text>", "Text message to speak")
 	.option("--voice <name>", "OpenAI voice", defaultVoice)
 	.action(async (opts) => {
+		const { say, writeError } = await withSuppressedNativeOutput();
 		try {
-			const { say } = await withSuppressedStdout();
 			const auth = resolveAuth();
 			const message = await getMessage(opts.message);
 			await say(message, { voice: opts.voice, auth });
 			process.exit(0);
 		} catch (err: unknown) {
-			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
+			writeError(`${err instanceof Error ? err.message : err}`);
 			process.exit(1);
 		}
 	});
