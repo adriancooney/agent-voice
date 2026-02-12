@@ -2,4 +2,5 @@ pre-commit:
   commands:
     biome:
       glob: "*.{ts,js,json}"
+      exclude: "packages/agent-voice-aec/index.js"
       run: pnpm biome check --no-errors-on-unmatched {staged_files}
