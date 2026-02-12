@@ -1,6 +1,6 @@
 {
 	"name": "@agent-voice/aec",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Acoustic echo cancellation via SpeexDSP for Node.js",
 	"main": "index.js",
 	"types": "index.d.ts",

@@ -1,5 +1,13 @@
 # agent-voice
 
+## 0.1.3
+
+### Patch Changes
+
+- Restructure as pnpm + Turborepo monorepo
+- Updated dependencies
+  - @agent-voice/aec@0.1.1
+
 ## 0.1.2
 
 ### Patch Changes
