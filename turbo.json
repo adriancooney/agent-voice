@@ -5,7 +5,7 @@
 			"dependsOn": ["^build"],
 			"outputs": ["dist/**"]
 		},
-		"@agent-voice/aec#build": {
+		"agent-voice-aec#build": {
 			"cache": false
 		},
 		"check": {},

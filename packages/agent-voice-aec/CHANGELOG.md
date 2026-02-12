@@ -1,4 +1,4 @@
-# @agent-voice/aec
+# agent-voice-aec
 
 ## 0.1.1
 

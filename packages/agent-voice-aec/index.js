@@ -37,7 +37,7 @@ switch (platform) {
 					if (localFileExisted) {
 						nativeBinding = require("./aec.darwin-x64.node");
 					} else {
-						nativeBinding = require("@agent-voice/aec-darwin-x64");
+						nativeBinding = require("agent-voice-aec-darwin-x64");
 					}
 				} catch (e) {
 					loadError = e;
@@ -49,7 +49,7 @@ switch (platform) {
 					if (localFileExisted) {
 						nativeBinding = require("./aec.darwin-arm64.node");
 					} else {
-						nativeBinding = require("@agent-voice/aec-darwin-arm64");
+						nativeBinding = require("agent-voice-aec-darwin-arm64");
 					}
 				} catch (e) {
 					loadError = e;
@@ -72,7 +72,7 @@ switch (platform) {
 						if (localFileExisted) {
 							nativeBinding = require("./aec.linux-x64-gnu.node");
 						} else {
-							nativeBinding = require("@agent-voice/aec-linux-x64-gnu");
+							nativeBinding = require("agent-voice-aec-linux-x64-gnu");
 						}
 					} catch (e) {
 						loadError = e;
@@ -90,7 +90,7 @@ switch (platform) {
 						if (localFileExisted) {
 							nativeBinding = require("./aec.linux-arm64-gnu.node");
 						} else {
-							nativeBinding = require("@agent-voice/aec-linux-arm64-gnu");
+							nativeBinding = require("agent-voice-aec-linux-arm64-gnu");
 						}
 					} catch (e) {
 						loadError = e;

@@ -23,12 +23,12 @@ importers:
 
   packages/agent-voice:
     dependencies:
-      '@agent-voice/aec':
-        specifier: workspace:*
-        version: link:../agent-voice-aec
       '@inquirer/prompts':
         specifier: ^8.2.0
         version: 8.2.0(@types/node@22.19.11)
+      agent-voice-aec:
+        specifier: workspace:*
+        version: link:../agent-voice-aec
       commander:
         specifier: ^13.1.0
         version: 13.1.0

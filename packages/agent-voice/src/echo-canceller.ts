@@ -1,4 +1,4 @@
-import { EchoCanceller } from "@agent-voice/aec";
+import { EchoCanceller } from "agent-voice-aec";
 import { SAMPLE_RATE } from "./types.js";
 
 const FRAME_SIZE = 480;

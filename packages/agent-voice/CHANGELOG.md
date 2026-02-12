@@ -6,7 +6,7 @@
 
 - Restructure as pnpm + Turborepo monorepo
 - Updated dependencies
-  - @agent-voice/aec@0.1.1
+  - agent-voice-aec@0.1.1
 
 ## 0.1.2
 
