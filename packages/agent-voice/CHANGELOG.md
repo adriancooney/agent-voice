@@ -1,5 +1,15 @@
 # agent-voice
 
+## 0.2.3
+
+### Patch Changes
+
+- Tune `ask` near-end speech evidence defaults for quieter real-world microphones while preserving self-hearing protection.
+
+  - Lower default speech evidence RMS thresholds.
+  - Use directional pre/post evidence windows around `speech_started` instead of a symmetric age window.
+  - Keep barge-in self-hearing safeguards with improved acceptance for normal-volume responses.
+
 ## 0.2.2
 
 ### Patch Changes

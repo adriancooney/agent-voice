@@ -193,7 +193,24 @@ export async function ask(
 			if (!heardAssistantAudio) return;
 			for (const frame of processedFrames) {
 				const rms = pcm16Rms(frame);
-				const minSpeechRms = readEnvInt("AGENT_VOICE_MIN_SPEECH_RMS", 550);
+				const configuredMinSpeechRms = readEnvInt(
+					"AGENT_VOICE_MIN_SPEECH_RMS",
+					220,
+				);
+				const relaxAfterMs = readEnvInt(
+					"AGENT_VOICE_MIN_SPEECH_RMS_RELAX_AFTER_MS",
+					500,
+				);
+				const relaxedMinSpeechRms = readEnvInt(
+					"AGENT_VOICE_MIN_SPEECH_RMS_RELAXED",
+					120,
+				);
+				const minSpeechRms =
+					speechDetected &&
+					speechStartedAtMs > 0 &&
+					Date.now() - speechStartedAtMs >= relaxAfterMs
+						? relaxedMinSpeechRms
+						: configuredMinSpeechRms;
 				if (rms >= minSpeechRms) {
 					nearEndEvidenceSeen = true;
 					nearEndEvidenceAtMs = Date.now();
@@ -237,21 +254,28 @@ export async function ask(
 				logEvent("realtime:transcript", `text=\"${text}\"`);
 				trace("realtime:transcript", { text });
 				if (speechDetected) {
-					const evidenceWindowMs = readEnvInt(
-						"AGENT_VOICE_SPEECH_EVIDENCE_WINDOW_MS",
-						1200,
+					const evidencePreRollMs = readEnvInt(
+						"AGENT_VOICE_SPEECH_EVIDENCE_PREROLL_MS",
+						200,
 					);
-					const evidenceAgeMs = nearEndEvidenceSeen
-						? Math.abs(nearEndEvidenceAtMs - speechStartedAtMs)
-						: Number.POSITIVE_INFINITY;
-					if (!nearEndEvidenceSeen || evidenceAgeMs > evidenceWindowMs) {
+					const evidencePostRollMs = readEnvInt(
+						"AGENT_VOICE_SPEECH_EVIDENCE_POSTROLL_MS",
+						1500,
+					);
+					const evidenceEarliestMs = speechStartedAtMs - evidencePreRollMs;
+					const evidenceLatestMs = speechStartedAtMs + evidencePostRollMs;
+					const hasTimelyNearEndEvidence =
+						nearEndEvidenceSeen &&
+						nearEndEvidenceAtMs >= evidenceEarliestMs &&
+						nearEndEvidenceAtMs <= evidenceLatestMs;
+					if (!hasTimelyNearEndEvidence) {
 						trace("realtime:transcript_ignored_no_near_end_evidence", {
 							text,
 							speechStartedAtMs,
 							nearEndEvidenceSeen,
 							nearEndEvidenceAtMs,
-							evidenceAgeMs,
-							evidenceWindowMs,
+							evidenceEarliestMs,
+							evidenceLatestMs,
 						});
 						return;
 					}
