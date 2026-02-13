@@ -1,7 +1,7 @@
 ---
 name: voice
 description: Starts a voice conversation with the user via the agent-voice CLI. Use when the user invokes /voice. The user is not looking at the screen — they are listening and speaking. All agent output and input goes through voice until the conversation ends.
-allowed-tools: Bash(agent-voice:*)
+allowed-tools: Bash(agent-voice *), Bash(npm install -g agent-voice)
 ---
 
 # Voice Mode
@@ -19,7 +19,7 @@ When this skill activates, **immediately start the voice conversation** before d
 
 ## Setup
 
-The `agent-voice` CLI must be installed globally. If it is not installed or a command fails with "command not found", install it:
+If `agent-voice` fails with "command not found", install it and retry:
 
 ```bash
 npm install -g agent-voice

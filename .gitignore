@@ -5,3 +5,10 @@ target/
 *.generated.d.ts
 npm/
 .turbo
+
+# Local machine/agent artifacts
+.DS_Store
+.claude/
+packages/**/.DS_Store
+packages/agent-voice/.artifacts/
+packages/agent-voice/.env.local
