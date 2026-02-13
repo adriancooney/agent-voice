@@ -1,6 +1,6 @@
 {
 	"name": "agent-voice",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "CLI for AI agents to interact with humans via voice",
 	"type": "module",
 	"main": "./dist/index.js",
