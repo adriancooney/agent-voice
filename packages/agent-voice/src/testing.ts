@@ -189,3 +189,124 @@ export function createDelayedFakeRecorder(
 		};
 	};
 }
+
+type EchoMixRecorderOptions = {
+	userSpeech: Buffer;
+	playbackChunks: Buffer[];
+	captureChunks?: Buffer[];
+	chunkInterval?: number;
+	echoDelayMs?: number;
+	echoGain?: number;
+	userGain?: number;
+	noiseAmplitude?: number;
+	preSpeechSilenceMs?: number;
+	trailingSilenceMs?: number;
+};
+
+function clampPcm16(value: number): number {
+	if (value > 32767) return 32767;
+	if (value < -32768) return -32768;
+	return value;
+}
+
+export function createEchoMixRecorder({
+	userSpeech,
+	playbackChunks,
+	captureChunks,
+	chunkInterval = 50,
+	echoDelayMs = 60,
+	echoGain = 0.8,
+	userGain = 1,
+	noiseAmplitude = 200,
+	preSpeechSilenceMs = 1200,
+	trailingSilenceMs = 1800,
+}: EchoMixRecorderOptions): () => AudioRecorder {
+	return () => {
+		let cb: ((pcm16: Buffer) => void) | null = null;
+		let timer: ReturnType<typeof setInterval> | null = null;
+		let emittedSamples = 0;
+		let chunkIndex = 0;
+		let playbackAudio = Buffer.alloc(0);
+		let sentTrailingSilence = false;
+
+		const bytesPerChunk = SAMPLE_RATE * 2 * (chunkInterval / 1000);
+		const samplesPerChunk = Math.floor(bytesPerChunk / 2);
+		const userSamples = Math.floor(userSpeech.length / 2);
+		const preSpeechSamples = Math.floor(
+			(SAMPLE_RATE * preSpeechSilenceMs) / 1000,
+		);
+		const trailingSamples = Math.floor(
+			(SAMPLE_RATE * trailingSilenceMs) / 1000,
+		);
+		const stopAfterSamples = preSpeechSamples + userSamples + trailingSamples;
+		const echoDelaySamples = Math.floor((SAMPLE_RATE * echoDelayMs) / 1000);
+
+		function syncPlaybackAudio() {
+			if (chunkIndex >= playbackChunks.length) return;
+			playbackAudio = Buffer.concat([
+				playbackAudio,
+				...playbackChunks.slice(chunkIndex),
+			]);
+			chunkIndex = playbackChunks.length;
+		}
+
+		function readPlaybackSample(sampleIdx: number): number {
+			if (sampleIdx < 0) return 0;
+			const byteOffset = sampleIdx * 2;
+			if (byteOffset + 2 > playbackAudio.length) return 0;
+			return playbackAudio.readInt16LE(byteOffset);
+		}
+
+		return {
+			onData(callback: (pcm16: Buffer) => void) {
+				cb = callback;
+			},
+			start() {
+				timer = setInterval(() => {
+					if (!cb) return;
+
+					if (emittedSamples >= stopAfterSamples) {
+						if (!sentTrailingSilence) {
+							sentTrailingSilence = true;
+							cb(createSilence(2));
+						}
+						if (timer) clearInterval(timer);
+						return;
+					}
+
+					syncPlaybackAudio();
+					const out = Buffer.alloc(samplesPerChunk * 2);
+
+					for (let i = 0; i < samplesPerChunk; i++) {
+						const sampleIdx = emittedSamples + i;
+						const userIdx = sampleIdx - preSpeechSamples;
+						const echoIdx = sampleIdx - echoDelaySamples;
+
+						const userSample =
+							userIdx >= 0 && userIdx < userSamples
+								? userSpeech.readInt16LE(userIdx * 2)
+								: 0;
+						const echoSample = readPlaybackSample(echoIdx);
+						const noise =
+							noiseAmplitude > 0 ? (Math.random() * 2 - 1) * noiseAmplitude : 0;
+
+						const mixed = clampPcm16(
+							Math.round(echoSample * echoGain + userSample * userGain + noise),
+						);
+						out.writeInt16LE(mixed, i * 2);
+					}
+
+					emittedSamples += samplesPerChunk;
+					captureChunks?.push(out);
+					cb(out);
+				}, chunkInterval);
+			},
+			stop() {
+				if (timer) clearInterval(timer);
+			},
+			close() {
+				if (timer) clearInterval(timer);
+			},
+		};
+	};
+}

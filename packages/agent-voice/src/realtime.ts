@@ -23,6 +23,7 @@ export type RealtimeSessionOptions = {
 	ack: boolean;
 	auth?: AuthConfig;
 	onAudioDelta: (pcm16: Buffer) => void;
+	onAudioDone?: () => void;
 	onTranscript: (text: string) => void;
 	onSpeechStarted: () => void;
 	onInitialResponseDone: () => void;
@@ -71,6 +72,9 @@ export function createRealtimeSession(
 		rt.on("response.audio.delta", (event) => {
 			const pcm16 = Buffer.from(event.delta, "base64");
 			options.onAudioDelta(pcm16);
+		});
+		rt.on("response.audio.done", () => {
+			options.onAudioDone?.();
 		});
 
 		rt.on("conversation.item.input_audio_transcription.completed", (event) => {

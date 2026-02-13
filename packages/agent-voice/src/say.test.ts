@@ -8,7 +8,10 @@ import {
 
 const SIMILARITY_THRESHOLD = 0.7;
 
-describe.skipIf(!process.env.OPENAI_API_KEY)(say, () => {
+describe.skipIf(
+	!process.env.OPENAI_API_KEY ||
+		process.env.AGENT_VOICE_ALLOW_LEGACY_SIM_TESTS !== "1",
+)(say, () => {
 	it("outputs audio matching the input message", async () => {
 		const message = "The quick brown fox jumps over the lazy dog";
 		const player = createFakePlayer();

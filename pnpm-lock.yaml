@@ -26,15 +26,12 @@ importers:
       '@inquirer/prompts':
         specifier: ^8.2.0
         version: 8.2.0(@types/node@22.19.11)
-      agent-voice-aec:
-        specifier: workspace:*
-        version: link:../agent-voice-aec
+      agent-voice-audio:
+        specifier: ^0.2.0
+        version: 0.2.0
       commander:
         specifier: ^13.1.0
         version: 13.1.0
-      naudiodon2:
-        specifier: ^2.1.0
-        version: 2.5.0
       openai:
         specifier: ^4.96.0
         version: 4.104.0(ws@8.19.0)
@@ -61,14 +58,11 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@22.19.11)(tsx@4.21.0)
 
-  packages/agent-voice-aec:
+  packages/agent-voice-audio:
     devDependencies:
       '@napi-rs/cli':
         specifier: ^3.0.0-alpha
         version: 3.5.1(@emnapi/runtime@1.8.1)(@types/node@22.19.11)
-      vitest:
-        specifier: ^4.0.0
-        version: 4.0.18(@types/node@22.19.11)(tsx@4.21.0)
 
 packages:
 
@@ -1101,6 +1095,11 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
+  agent-voice-audio@0.2.0:
+    resolution: {integrity: sha512-yKChkdCmJFluFSZVs4Bf3IOqbOztPBO6vlso8+hk7kGXlN9qswsuzKNjxlyiObfuoeWKsir/fC6/GviyNofm9A==}
+    cpu: [arm64]
+    os: [darwin]
+
   agentkeepalive@4.6.0:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
@@ -1147,9 +1146,6 @@ packages:
   better-path-resolve@1.0.0:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
-
-  bindings@1.5.0:
-    resolution: {integrity: sha512-p2q/t/mhvuOj/UeLlV6566GD/guowlr0hHxClI0W9m7MWYkL1F0hLo+0Aexs9HSPCtR1SXQ0TD3MMKrXZajbiQ==}
 
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
@@ -1323,9 +1319,6 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
-
-  file-uri-to-path@1.0.0:
-    resolution: {integrity: sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw==}
 
   fill-range@7.1.1:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
@@ -1572,16 +1565,10 @@ packages:
   mz@2.7.0:
     resolution: {integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==}
 
-  nan@2.25.0:
-    resolution: {integrity: sha512-0M90Ag7Xn5KMLLZ7zliPWP3rT90P6PN+IzVFS0VqmnPktBk3700xUVv8Ikm9EUaUE5SDWdp/BIxdENzVznpm1g==}
-
   nanoid@3.3.11:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
-
-  naudiodon2@2.5.0:
-    resolution: {integrity: sha512-NAhiQ73ldwEK2y3hzDk+LsWDPE2ppOXSJWk2v+fYAoK02nIPzBtDmb7kvh5WTd+/kOgM+Fsbx17eFL6P4kTn7w==}
 
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
@@ -1741,9 +1728,6 @@ packages:
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
-
-  segfault-handler@1.3.0:
-    resolution: {integrity: sha512-p7kVHo+4uoYkr0jmIiTBthwV5L2qmWtben/KDunDZ834mbos+tY+iO0//HpAJpOFSQZZ+wxKWuRo4DxV02B7Lg==}
 
   semver@7.7.4:
     resolution: {integrity: sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==}
@@ -2955,6 +2939,8 @@ snapshots:
 
   acorn@8.15.0: {}
 
+  agent-voice-audio@0.2.0: {}
+
   agentkeepalive@4.6.0:
     dependencies:
       humanize-ms: 1.2.1
@@ -2986,10 +2972,6 @@ snapshots:
   better-path-resolve@1.0.0:
     dependencies:
       is-windows: 1.0.2
-
-  bindings@1.5.0:
-    dependencies:
-      file-uri-to-path: 1.0.0
 
   braces@3.0.3:
     dependencies:
@@ -3147,8 +3129,6 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.3):
     optionalDependencies:
       picomatch: 4.0.3
-
-  file-uri-to-path@1.0.0: {}
 
   fill-range@7.1.1:
     dependencies:
@@ -3384,14 +3364,7 @@ snapshots:
       object-assign: 4.1.1
       thenify-all: 1.6.0
 
-  nan@2.25.0: {}
-
   nanoid@3.3.11: {}
-
-  naudiodon2@2.5.0:
-    dependencies:
-      bindings: 1.5.0
-      segfault-handler: 1.3.0
 
   node-domexception@1.0.0: {}
 
@@ -3533,11 +3506,6 @@ snapshots:
       queue-microtask: 1.2.3
 
   safer-buffer@2.1.2: {}
-
-  segfault-handler@1.3.0:
-    dependencies:
-      bindings: 1.5.0
-      nan: 2.25.0
 
   semver@7.7.4: {}
 

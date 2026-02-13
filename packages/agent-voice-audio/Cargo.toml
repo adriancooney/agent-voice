@@ -1,5 +1,5 @@
 [package]
-name = "agent-voice-aec"
+name = "agent-voice-audio"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
@@ -8,9 +8,10 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
+cpal = "0.15"
 napi = { version = "2", default-features = false, features = ["napi4"] }
 napi-derive = { version = "2", features = ["type-def"] }
-aec-rs-sys = "1"
+sonora = "0.1.0"
 
 [build-dependencies]
 napi-build = "2"

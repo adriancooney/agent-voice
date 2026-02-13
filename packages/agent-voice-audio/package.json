@@ -1,0 +1,23 @@
+{
+	"name": "agent-voice-audio",
+	"version": "0.2.1",
+	"description": "Rust full-duplex audio engine with AEC for agent-voice",
+	"main": "index.js",
+	"types": "index.d.ts",
+	"os": ["darwin"],
+	"cpu": ["arm64"],
+	"license": "MIT",
+	"scripts": {
+		"artifacts": "napi artifacts",
+		"build": "napi build --platform --release --dts index.generated.d.ts",
+		"build:debug": "napi build --platform",
+		"check": "biome check --write --files-ignore-unknown=true",
+		"prepublishOnly": "pnpm run build",
+		"test": "echo 'no tests yet'",
+		"universal": "napi universal -t agent-voice-audio"
+	},
+	"devDependencies": {
+		"@napi-rs/cli": "^3.0.0-alpha"
+	},
+	"files": ["index.js", "index.d.ts", "audio.darwin-arm64.node"]
+}

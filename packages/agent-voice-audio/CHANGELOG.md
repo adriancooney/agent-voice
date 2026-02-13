@@ -1,4 +1,4 @@
-# agent-voice
+# agent-voice-audio
 
 ## 0.2.1
 
@@ -9,9 +9,6 @@
   - Use realtime `response.audio.done` as the primary output-complete signal.
   - Add bounded completion fallback and cleanup timer handling in `say`.
   - Update native audio engine stats surface used by playback-completion logic.
-
-- Updated dependencies
-  - agent-voice-audio@0.2.1
 
 ## 0.2.0
 
@@ -24,28 +21,3 @@
   - Remove legacy backend dependencies (`naudiodon2`) and legacy runtime modules.
   - Keep debug audio capture and timeout behavior improvements for `ask`.
   - Update `agent-voice-aec` internals and exports used by the new pipeline.
-
-### Patch Changes
-
-- Updated dependencies
-  - agent-voice-audio@0.2.0
-
-## 0.1.3
-
-### Patch Changes
-
-- Restructure as pnpm + Turborepo monorepo
-- Updated dependencies
-  - agent-voice-aec@0.1.1
-
-## 0.1.2
-
-### Patch Changes
-
-- Fix auth and voices commands hanging due to global stdout suppression
-
-## 0.1.1
-
-### Patch Changes
-
-- Fix --help producing no output by routing Commander output to stderr

@@ -1,6 +1,14 @@
-import { closeSync, openSync, writeSync } from "node:fs";
+import {
+	closeSync,
+	mkdirSync,
+	openSync,
+	writeFileSync,
+	writeSync,
+} from "node:fs";
+import { join } from "node:path";
 import { Command } from "commander";
 import { resolveAuth, resolveVoice, writeVoiceConfig } from "./config.js";
+import { BIT_DEPTH, CHANNELS, SAMPLE_RATE } from "./types.js";
 import { VOICES } from "./types.js";
 
 // Redirect C-level stdout (fd 1) and stderr (fd 2) to /dev/null so
@@ -43,6 +51,50 @@ async function getMessage(flag: string | undefined): Promise<string> {
 	const stdin = await readStdin();
 	if (stdin) return stdin;
 	throw new Error("No message provided. Use -m or pipe via stdin.");
+}
+
+function createWavBuffer(pcm16: Buffer): Buffer {
+	const header = Buffer.alloc(44);
+	const dataSize = pcm16.length;
+	const fileSize = 36 + dataSize;
+	const byteRate = SAMPLE_RATE * CHANNELS * (BIT_DEPTH / 8);
+	const blockAlign = CHANNELS * (BIT_DEPTH / 8);
+
+	header.write("RIFF", 0);
+	header.writeUInt32LE(fileSize, 4);
+	header.write("WAVE", 8);
+	header.write("fmt ", 12);
+	header.writeUInt32LE(16, 16);
+	header.writeUInt16LE(1, 20);
+	header.writeUInt16LE(CHANNELS, 22);
+	header.writeUInt32LE(SAMPLE_RATE, 24);
+	header.writeUInt32LE(byteRate, 28);
+	header.writeUInt16LE(blockAlign, 32);
+	header.writeUInt16LE(BIT_DEPTH, 34);
+	header.write("data", 36);
+	header.writeUInt32LE(dataSize, 40);
+
+	return Buffer.concat([header, pcm16]);
+}
+
+function writeDebugAudio(
+	dir: string,
+	assistantChunks: Buffer[],
+	micChunks: Buffer[],
+	modelInputChunks: Buffer[],
+) {
+	mkdirSync(dir, { recursive: true });
+	const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+	const assistantFile = join(dir, `ask-${stamp}-assistant-output.wav`);
+	const micFile = join(dir, `ask-${stamp}-mic-input.wav`);
+	const modelInputFile = join(dir, `ask-${stamp}-model-input.wav`);
+	writeFileSync(assistantFile, createWavBuffer(Buffer.concat(assistantChunks)));
+	writeFileSync(micFile, createWavBuffer(Buffer.concat(micChunks)));
+	writeFileSync(
+		modelInputFile,
+		createWavBuffer(Buffer.concat(modelInputChunks)),
+	);
+	return { assistantFile, micFile, modelInputFile };
 }
 
 const program = new Command()
@@ -106,8 +158,15 @@ program
 	.option("--voice <name>", "OpenAI voice", defaultVoice)
 	.option("--timeout <seconds>", "Seconds to wait for user speech", "120")
 	.option("--ack", "Speak an acknowledgment after the user responds")
+	.option(
+		"--debug-audio-dir <dir>",
+		"Write ask audio debug WAVs to this directory",
+	)
 	.action(async (opts) => {
 		const { ask, writeResult, writeError } = await withSuppressedNativeOutput();
+		const assistantChunks: Buffer[] = [];
+		const micChunks: Buffer[] = [];
+		const modelInputChunks: Buffer[] = [];
 		try {
 			const auth = resolveAuth();
 			const message = await getMessage(opts.message);
@@ -116,10 +175,43 @@ program
 				timeout: Number.parseInt(opts.timeout, 10),
 				ack: opts.ack ?? false,
 				auth,
+				onAssistantAudio: opts.debugAudioDir
+					? (pcm16) => assistantChunks.push(Buffer.from(pcm16))
+					: undefined,
+				onMicAudio: opts.debugAudioDir
+					? (pcm16) => micChunks.push(Buffer.from(pcm16))
+					: undefined,
+				onAudioFrameSent: opts.debugAudioDir
+					? (pcm16) => modelInputChunks.push(Buffer.from(pcm16))
+					: undefined,
 			});
+			if (opts.debugAudioDir) {
+				const files = writeDebugAudio(
+					opts.debugAudioDir,
+					assistantChunks,
+					micChunks,
+					modelInputChunks,
+				);
+				writeError(
+					`debug audio written:\n${files.assistantFile}\n${files.micFile}\n${files.modelInputFile}`,
+				);
+			}
 			writeResult(transcript);
 			process.exit(0);
 		} catch (err: unknown) {
+			if (opts.debugAudioDir) {
+				try {
+					const files = writeDebugAudio(
+						opts.debugAudioDir,
+						assistantChunks,
+						micChunks,
+						modelInputChunks,
+					);
+					writeError(
+						`debug audio written:\n${files.assistantFile}\n${files.micFile}\n${files.modelInputFile}`,
+					);
+				} catch {}
+			}
 			writeError(`${err instanceof Error ? err.message : err}`);
 			process.exit(1);
 		}
