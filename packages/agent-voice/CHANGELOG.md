@@ -1,5 +1,16 @@
 # agent-voice
 
+## 0.2.2
+
+### Patch Changes
+
+- Improve voice reliability under real-world timing and echo conditions.
+
+  - Prevent `say` from cutting off output by waiting for playback drain with progress-based deadlines.
+  - Add deterministic regression tests for `say` truncation and fallback completion behavior.
+  - Harden `ask` against self-heard assistant audio by requiring near-end mic evidence before accepting transcripts after barge-in.
+  - Add deterministic regression tests for `ask` self-hearing false positives, including a 20-run jitter sweep.
+
 ## 0.2.1
 
 ### Patch Changes
