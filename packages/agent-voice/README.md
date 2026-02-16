@@ -54,6 +54,7 @@ agent-voice say -m "Build complete. No errors."
 |------|---------|-------------|
 | `-m, --message` | — | Text to speak (or pipe via stdin) |
 | `--voice` | `ash` | Voice to use |
+| `--no-daemon` | — | Skip daemon, run directly |
 
 ### `ask`
 
@@ -68,8 +69,9 @@ agent-voice ask -m "What should I name this component?"
 |------|---------|-------------|
 | `-m, --message` | — | Text to speak (or pipe via stdin) |
 | `--voice` | `ash` | Voice to use |
-| `--timeout` | `30` | Seconds to wait for speech |
+| `--timeout` | `120` | Seconds to wait for speech |
 | `--ack` | `false` | Speak a brief acknowledgment after the user responds |
+| `--no-daemon` | — | Skip daemon, run directly |
 
 ### `voices`
 
@@ -88,6 +90,75 @@ Interactive setup for API key and base URL.
 
 ```bash
 agent-voice auth
+```
+
+### `config`
+
+Manage configuration settings.
+
+```bash
+agent-voice config get              # show all config
+agent-voice config get debug        # show specific key
+agent-voice config set debug true   # set a value
+agent-voice config reset            # reset to defaults (preserves auth)
+agent-voice config reset debug      # reset specific key
+```
+
+### `daemon`
+
+Manage the background audio daemon. The daemon keeps the audio engine warm between commands, reducing startup latency. It auto-starts on the first `say` or `ask` invocation.
+
+```bash
+agent-voice daemon start    # start (no-op if running)
+agent-voice daemon stop     # stop gracefully
+agent-voice daemon restart  # stop + start
+agent-voice daemon status   # show PID, uptime, command count
+agent-voice daemon logs     # read event log (last 20 lines)
+agent-voice daemon logs -f  # follow log output
+agent-voice daemon logs -n 50  # show last 50 lines
+```
+
+## Daemon
+
+The daemon is a background Node.js process that holds a single audio engine alive between commands. It listens on a Unix socket at `~/.agent-voice/daemon.sock` and executes commands serially (audio hardware is single-consumer).
+
+- Auto-starts on first `say`/`ask` — no manual setup needed
+- Auto-exits after 30 minutes idle (configurable via `daemon.idleTimeoutMinutes`)
+- Recreates the engine when switching modes (say uses no AEC, ask enables AEC)
+- Falls back to direct execution if the daemon can't start
+
+Use `--no-daemon` on any command to bypass the daemon and run directly.
+
+## Debug Logging
+
+Enable structured debug logging to diagnose audio issues:
+
+```bash
+agent-voice config set debug true        # NDJSON event traces
+agent-voice config set debug.audio true  # also capture WAV files
+```
+
+Or via environment variables: `AGENT_VOICE_DEBUG=1`, `AGENT_VOICE_DEBUG_AUDIO=1`.
+
+When enabled, all commands (daemon and direct) write:
+
+- **`~/.agent-voice/logs/events.ndjson`** — append-only structured event log with timestamps
+- **`~/.agent-voice/logs/audio/`** — WAV captures (assistant output, mic input, model input)
+
+Audio files use a ring buffer — the last 50 commands are kept, oldest auto-deleted. Configure the buffer size with `daemon.audioRingBufferSize`.
+
+Each NDJSON line:
+
+```json
+{"ts":"2026-02-16T10:30:00.123Z","cmd":"ask","id":"abc123","event":"realtime:audio_delta","detail":{"bytes":3200}}
+```
+
+Read logs with:
+
+```bash
+agent-voice daemon logs          # last 20 entries
+agent-voice daemon logs -f       # follow in real-time
+agent-voice daemon logs -n 100   # last 100 entries
 ```
 
 ## Node.js API
@@ -112,6 +183,8 @@ await say("Deployment complete.");
 type SayOptions = {
   voice?: string;       // OpenAI voice (default: "ash")
   auth?: AuthConfig;    // { apiKey: string; baseUrl?: string }
+  onAssistantAudio?: (pcm16: Buffer) => void;  // audio chunk callback
+  onTrace?: (event: { atMs: number; event: string; detail?: Record<string, unknown> }) => void;
 };
 ```
 
@@ -134,6 +207,10 @@ type AskOptions = {
   timeout?: number;     // Seconds to wait for speech (default: 30)
   ack?: boolean;        // Acknowledge after user responds (default: false)
   auth?: AuthConfig;    // { apiKey: string; baseUrl?: string }
+  onAssistantAudio?: (pcm16: Buffer) => void;  // assistant audio chunks
+  onMicAudio?: (pcm16: Buffer) => void;         // raw mic capture
+  onAudioFrameSent?: (pcm16: Buffer) => void;   // processed frames sent to model
+  onTrace?: (event: { atMs: number; event: string; detail?: Record<string, unknown> }) => void;
 };
 ```
 
@@ -156,11 +233,14 @@ All configuration lives in `~/.agent-voice/config.json`:
 
 ```json
 {
-  "auth": {
-    "apiKey": "sk-...",
-    "baseUrl": "https://api.openai.com/v1"
-  },
-  "voice": "ash"
+  "auth": { "apiKey": "sk-...", "baseUrl": "https://api.openai.com/v1" },
+  "voice": "ash",
+  "debug": false,
+  "debug.audio": false,
+  "daemon": {
+    "idleTimeoutMinutes": 30,
+    "audioRingBufferSize": 50
+  }
 }
 ```
 
@@ -173,7 +253,7 @@ The file is created with `0600` permissions. Auth resolution order:
 
 Agent Voice connects to the OpenAI Realtime API over WebSocket. Text is sent as a conversation item and read aloud by the model. For `ask`, after the message plays, the microphone opens and audio streams to the API for transcription using `gpt-4o-transcribe` with semantic VAD (voice activity detection) to know when the user stops talking.
 
-Audio is PCM16 at 24kHz mono, handled through PortAudio via native bindings.
+Audio is PCM16 at 24kHz mono, handled through a Rust audio engine with built-in acoustic echo cancellation (AEC) to prevent the assistant from hearing its own playback.
 
 ## License
 
