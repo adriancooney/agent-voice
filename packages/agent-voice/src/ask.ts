@@ -135,6 +135,7 @@ export async function ask(
 		let lastAssistantAudioAt = 0;
 		let nearEndEvidenceSeen = false;
 		let nearEndEvidenceAtMs = 0;
+		let nearEndEvidenceConfirmed = false;
 		let cleaned = false;
 		let settled = false;
 
@@ -214,6 +215,22 @@ export async function ask(
 				if (rms >= minSpeechRms) {
 					nearEndEvidenceSeen = true;
 					nearEndEvidenceAtMs = Date.now();
+					if (!nearEndEvidenceConfirmed && speechStartedAtMs > 0) {
+						const evidencePreRollMs = readEnvInt(
+							"AGENT_VOICE_SPEECH_EVIDENCE_PREROLL_MS",
+							200,
+						);
+						const evidencePostRollMs = readEnvInt(
+							"AGENT_VOICE_SPEECH_EVIDENCE_POSTROLL_MS",
+							1500,
+						);
+						if (
+							nearEndEvidenceAtMs >= speechStartedAtMs - evidencePreRollMs &&
+							nearEndEvidenceAtMs <= speechStartedAtMs + evidencePostRollMs
+						) {
+							nearEndEvidenceConfirmed = true;
+						}
+					}
 					trace("audio:near_end_evidence", { rms, minSpeechRms });
 				}
 				onAudioFrameSent?.(frame);
@@ -253,32 +270,14 @@ export async function ask(
 				}
 				logEvent("realtime:transcript", `text=\"${text}\"`);
 				trace("realtime:transcript", { text });
-				if (speechDetected) {
-					const evidencePreRollMs = readEnvInt(
-						"AGENT_VOICE_SPEECH_EVIDENCE_PREROLL_MS",
-						200,
-					);
-					const evidencePostRollMs = readEnvInt(
-						"AGENT_VOICE_SPEECH_EVIDENCE_POSTROLL_MS",
-						1500,
-					);
-					const evidenceEarliestMs = speechStartedAtMs - evidencePreRollMs;
-					const evidenceLatestMs = speechStartedAtMs + evidencePostRollMs;
-					const hasTimelyNearEndEvidence =
-						nearEndEvidenceSeen &&
-						nearEndEvidenceAtMs >= evidenceEarliestMs &&
-						nearEndEvidenceAtMs <= evidenceLatestMs;
-					if (!hasTimelyNearEndEvidence) {
-						trace("realtime:transcript_ignored_no_near_end_evidence", {
-							text,
-							speechStartedAtMs,
-							nearEndEvidenceSeen,
-							nearEndEvidenceAtMs,
-							evidenceEarliestMs,
-							evidenceLatestMs,
-						});
-						return;
-					}
+				if (speechDetected && !nearEndEvidenceConfirmed) {
+					trace("realtime:transcript_ignored_no_near_end_evidence", {
+						text,
+						speechStartedAtMs,
+						nearEndEvidenceSeen,
+						nearEndEvidenceAtMs,
+					});
+					return;
 				}
 				if (transcriptTimer) {
 					clearTimeout(transcriptTimer);
@@ -292,6 +291,15 @@ export async function ask(
 				trace("realtime:speech_started");
 				speechDetected = true;
 				speechStartedAtMs = Date.now();
+				if (nearEndEvidenceSeen && !nearEndEvidenceConfirmed) {
+					const evidencePreRollMs = readEnvInt(
+						"AGENT_VOICE_SPEECH_EVIDENCE_PREROLL_MS",
+						200,
+					);
+					if (nearEndEvidenceAtMs >= speechStartedAtMs - evidencePreRollMs) {
+						nearEndEvidenceConfirmed = true;
+					}
+				}
 				if (timeoutTimer) {
 					clearTimeout(timeoutTimer);
 					timeoutTimer = null;

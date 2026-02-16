@@ -24,11 +24,12 @@
 		"test:watch": "vitest"
 	},
 	"dependencies": {
-		"agent-voice-audio": "^0.2.1",
 		"@inquirer/prompts": "^8.2.0",
+		"agent-voice-audio": "^0.2.1",
 		"commander": "^13.1.0",
 		"openai": "^4.96.0",
-		"ws": "^8.18.0"
+		"ws": "^8.18.0",
+		"zod": "3"
 	},
 	"devDependencies": {
 		"@types/node": "^22.12.0",

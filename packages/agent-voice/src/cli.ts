@@ -1,15 +1,28 @@
+import { randomUUID } from "node:crypto";
 import {
 	closeSync,
+	createReadStream,
 	mkdirSync,
 	openSync,
+	statSync,
 	writeFileSync,
 	writeSync,
 } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
-import { resolveAuth, resolveVoice, writeVoiceConfig } from "./config.js";
-import { BIT_DEPTH, CHANNELS, SAMPLE_RATE } from "./types.js";
-import { VOICES } from "./types.js";
+import {
+	EVENTS_LOG_PATH,
+	getConfigValue,
+	isDebugEnabled,
+	readConfig,
+	resetConfig,
+	resolveAuth,
+	resolveVoice,
+	setConfigValue,
+	writeVoiceConfig,
+} from "./config.js";
+import { createCommandLogger, writeAudioCapture } from "./daemon-log.js";
+import { BIT_DEPTH, CHANNELS, SAMPLE_RATE, VOICES } from "./types.js";
 
 // Redirect C-level stdout (fd 1) and stderr (fd 2) to /dev/null so
 // PortAudio's printf noise and SpeexDSP warnings are suppressed,
@@ -151,6 +164,183 @@ voicesCmd
 		process.exit(0);
 	});
 
+// --- Config commands ---
+
+const configCmd = program.command("config").description("Manage configuration");
+
+configCmd
+	.command("get [key]")
+	.description("Show config (all or specific key)")
+	.action((key?: string) => {
+		if (key) {
+			const value = getConfigValue(key);
+			if (value === undefined) {
+				process.stderr.write(`Unknown config key: ${key}\n`);
+				process.exit(1);
+			}
+			process.stdout.write(
+				`${typeof value === "object" ? JSON.stringify(value, null, 2) : value}\n`,
+			);
+		} else {
+			const config = readConfig();
+			process.stdout.write(`${JSON.stringify(config, null, 2)}\n`);
+		}
+		process.exit(0);
+	});
+
+configCmd
+	.command("set <key> <value>")
+	.description("Set a config value")
+	.action((key: string, value: string) => {
+		setConfigValue(key, value);
+		process.stdout.write(`${key} = ${getConfigValue(key)}\n`);
+		process.exit(0);
+	});
+
+configCmd
+	.command("reset [key]")
+	.description("Reset config to defaults (preserves auth)")
+	.action((key?: string) => {
+		resetConfig(key);
+		process.stdout.write(key ? `Reset ${key}\n` : "Config reset to defaults\n");
+		process.exit(0);
+	});
+
+// --- Daemon commands ---
+
+const daemonCmd = program
+	.command("daemon")
+	.description("Manage the background audio daemon");
+
+daemonCmd
+	.command("start")
+	.description("Start the daemon (no-op if already running)")
+	.action(async () => {
+		try {
+			const { startDaemon } = await import("./daemon-lifecycle.js");
+			const pid = await startDaemon();
+			process.stdout.write(`Daemon running (PID ${pid})\n`);
+			process.exit(0);
+		} catch (err: unknown) {
+			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
+			process.exit(1);
+		}
+	});
+
+daemonCmd
+	.command("stop")
+	.description("Stop the daemon")
+	.action(async () => {
+		try {
+			const { stopDaemon } = await import("./daemon-lifecycle.js");
+			await stopDaemon();
+			process.stdout.write("Daemon stopped\n");
+			process.exit(0);
+		} catch (err: unknown) {
+			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
+			process.exit(1);
+		}
+	});
+
+daemonCmd
+	.command("restart")
+	.description("Restart the daemon")
+	.action(async () => {
+		try {
+			const { restartDaemon } = await import("./daemon-lifecycle.js");
+			const pid = await restartDaemon();
+			process.stdout.write(`Daemon restarted (PID ${pid})\n`);
+			process.exit(0);
+		} catch (err: unknown) {
+			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
+			process.exit(1);
+		}
+	});
+
+daemonCmd
+	.command("status")
+	.description("Show daemon status")
+	.action(async () => {
+		try {
+			const { getDaemonStatus } = await import("./daemon-lifecycle.js");
+			const status = await getDaemonStatus();
+			if (!status.running) {
+				process.stdout.write("Daemon is not running\n");
+			} else {
+				const uptimeS = Math.floor(status.uptime / 1000);
+				const mins = Math.floor(uptimeS / 60);
+				const secs = uptimeS % 60;
+				process.stdout.write(
+					`Daemon running (PID ${status.pid})\n` +
+						`Uptime: ${mins}m ${secs}s\n` +
+						`Commands processed: ${status.commandCount}\n`,
+				);
+			}
+			process.exit(0);
+		} catch (err: unknown) {
+			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
+			process.exit(1);
+		}
+	});
+
+daemonCmd
+	.command("logs")
+	.description("Read event log")
+	.option("-f, --follow", "Follow log output")
+	.option("-n, --tail <lines>", "Show last N lines", "20")
+	.action(async (opts) => {
+		const tailN = Number.parseInt(opts.tail, 10);
+
+		try {
+			statSync(EVENTS_LOG_PATH);
+		} catch {
+			process.stderr.write(
+				"No log file found. Enable debug logging with: agent-voice config set debug true\n",
+			);
+			process.exit(1);
+		}
+
+		if (!opts.follow) {
+			// Read last N lines
+			const { readFileSync } = await import("node:fs");
+			const content = readFileSync(EVENTS_LOG_PATH, "utf-8");
+			const lines = content.trim().split("\n");
+			const tail = lines.slice(-tailN);
+			for (const line of tail) {
+				process.stdout.write(`${line}\n`);
+			}
+			process.exit(0);
+		}
+
+		// Follow mode: read last N lines then tail
+		const { readFileSync, watchFile } = await import("node:fs");
+		const content = readFileSync(EVENTS_LOG_PATH, "utf-8");
+		const lines = content.trim().split("\n");
+		const tail = lines.slice(-tailN);
+		for (const line of tail) {
+			process.stdout.write(`${line}\n`);
+		}
+
+		let offset = statSync(EVENTS_LOG_PATH).size;
+
+		watchFile(EVENTS_LOG_PATH, { interval: 200 }, () => {
+			const newSize = statSync(EVENTS_LOG_PATH).size;
+			if (newSize <= offset) return;
+			const stream = createReadStream(EVENTS_LOG_PATH, {
+				start: offset,
+				encoding: "utf-8",
+			});
+			stream.on("data", (chunk) => {
+				process.stdout.write(chunk);
+			});
+			stream.on("end", () => {
+				offset = newSize;
+			});
+		});
+	});
+
+// --- Say command (daemon-routed) ---
+
 program
 	.command("ask")
 	.description("Speak a message and listen for a response")
@@ -162,28 +352,76 @@ program
 		"--debug-audio-dir <dir>",
 		"Write ask audio debug WAVs to this directory",
 	)
+	.option("--no-daemon", "Skip daemon, run directly")
 	.action(async (opts) => {
+		const message = await getMessage(opts.message).catch((err) => {
+			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
+			process.exit(1);
+		});
+
+		const debug = isDebugEnabled();
+
+		// Try daemon first unless --no-daemon
+		if (opts.daemon !== false) {
+			try {
+				const { daemonAsk } = await import("./daemon-client.js");
+				const result = await daemonAsk(
+					message,
+					opts.voice,
+					Number.parseInt(opts.timeout, 10),
+					opts.ack ?? false,
+					{},
+				);
+				if (result.ok) {
+					if (result.type === "ask") {
+						process.stdout.write(`${result.transcript}\n`);
+					}
+					process.exit(0);
+				}
+				// Daemon returned error — fall through to direct if daemon failed to connect
+				if (result.message.startsWith("Socket error:")) {
+					// Fall through to direct execution
+				} else {
+					// Command-level error (auth, timeout, etc) — report it
+					process.stderr.write(`${result.message}\n`);
+					process.exit(1);
+				}
+			} catch {
+				// Daemon unavailable, fall through to direct execution
+			}
+		}
+
+		// Direct execution fallback
 		const { ask, writeResult, writeError } = await withSuppressedNativeOutput();
+		const id = randomUUID();
+		const logger = debug ? createCommandLogger("ask", id) : null;
 		const assistantChunks: Buffer[] = [];
 		const micChunks: Buffer[] = [];
 		const modelInputChunks: Buffer[] = [];
 		try {
 			const auth = resolveAuth();
-			const message = await getMessage(opts.message);
 			const transcript = await ask(message, {
 				voice: opts.voice,
 				timeout: Number.parseInt(opts.timeout, 10),
 				ack: opts.ack ?? false,
 				auth,
-				onAssistantAudio: opts.debugAudioDir
-					? (pcm16) => assistantChunks.push(Buffer.from(pcm16))
-					: undefined,
-				onMicAudio: opts.debugAudioDir
-					? (pcm16) => micChunks.push(Buffer.from(pcm16))
-					: undefined,
-				onAudioFrameSent: opts.debugAudioDir
-					? (pcm16) => modelInputChunks.push(Buffer.from(pcm16))
-					: undefined,
+				onAssistantAudio(pcm16) {
+					assistantChunks.push(Buffer.from(pcm16));
+				},
+				onMicAudio(pcm16) {
+					micChunks.push(Buffer.from(pcm16));
+				},
+				onAudioFrameSent(pcm16) {
+					modelInputChunks.push(Buffer.from(pcm16));
+				},
+				onTrace(event) {
+					logger?.trace(event);
+				},
+			});
+			writeAudioCapture(id, {
+				assistant: assistantChunks,
+				mic: micChunks,
+				"model-input": modelInputChunks,
 			});
 			if (opts.debugAudioDir) {
 				const files = writeDebugAudio(
@@ -199,6 +437,11 @@ program
 			writeResult(transcript);
 			process.exit(0);
 		} catch (err: unknown) {
+			writeAudioCapture(id, {
+				assistant: assistantChunks,
+				mic: micChunks,
+				"model-input": modelInputChunks,
+			});
 			if (opts.debugAudioDir) {
 				try {
 					const files = writeDebugAudio(
@@ -226,19 +469,52 @@ program
 		"--debug-audio-dir <dir>",
 		"Write say audio debug WAV to this directory",
 	)
+	.option("--no-daemon", "Skip daemon, run directly")
 	.action(async (opts) => {
+		const message = await getMessage(opts.message).catch((err) => {
+			process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
+			process.exit(1);
+		});
+
+		const debug = isDebugEnabled();
+
+		// Try daemon first unless --no-daemon
+		if (opts.daemon !== false) {
+			try {
+				const { daemonSay } = await import("./daemon-client.js");
+				const result = await daemonSay(message, opts.voice);
+				if (result.ok) {
+					process.exit(0);
+				}
+				if (result.message.startsWith("Socket error:")) {
+					// Fall through to direct execution
+				} else {
+					process.stderr.write(`${result.message}\n`);
+					process.exit(1);
+				}
+			} catch {
+				// Daemon unavailable, fall through to direct execution
+			}
+		}
+
+		// Direct execution fallback
 		const { say, writeError } = await withSuppressedNativeOutput();
+		const id = randomUUID();
+		const logger = debug ? createCommandLogger("say", id) : null;
 		const assistantChunks: Buffer[] = [];
 		try {
 			const auth = resolveAuth();
-			const message = await getMessage(opts.message);
 			await say(message, {
 				voice: opts.voice,
 				auth,
-				onAssistantAudio: opts.debugAudioDir
-					? (pcm16) => assistantChunks.push(Buffer.from(pcm16))
-					: undefined,
+				onAssistantAudio(pcm16) {
+					assistantChunks.push(Buffer.from(pcm16));
+				},
+				onTrace(event) {
+					logger?.trace(event);
+				},
 			});
+			writeAudioCapture(id, { assistant: assistantChunks });
 			if (opts.debugAudioDir) {
 				mkdirSync(opts.debugAudioDir, { recursive: true });
 				const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -251,6 +527,7 @@ program
 			}
 			process.exit(0);
 		} catch (err: unknown) {
+			writeAudioCapture(id, { assistant: assistantChunks });
 			if (opts.debugAudioDir && assistantChunks.length > 0) {
 				try {
 					mkdirSync(opts.debugAudioDir, { recursive: true });

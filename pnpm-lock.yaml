@@ -34,10 +34,13 @@ importers:
         version: 13.1.0
       openai:
         specifier: ^4.96.0
-        version: 4.104.0(ws@8.19.0)
+        version: 4.104.0(ws@8.19.0)(zod@3.25.76)
       ws:
         specifier: ^8.18.0
         version: 8.19.0
+      zod:
+        specifier: '3'
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.12.0
@@ -2032,6 +2035,9 @@ packages:
       utf-8-validate:
         optional: true
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
 snapshots:
 
   '@babel/runtime@7.28.6': {}
@@ -3376,7 +3382,7 @@ snapshots:
 
   obug@2.1.1: {}
 
-  openai@4.104.0(ws@8.19.0):
+  openai@4.104.0(ws@8.19.0)(zod@3.25.76):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -3387,6 +3393,7 @@ snapshots:
       node-fetch: 2.7.0
     optionalDependencies:
       ws: 8.19.0
+      zod: 3.25.76
     transitivePeerDependencies:
       - encoding
 
@@ -3749,3 +3756,5 @@ snapshots:
       strip-ansi: 7.1.2
 
   ws@8.19.0: {}
+
+  zod@3.25.76: {}

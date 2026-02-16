@@ -158,6 +158,47 @@ describe("ask deterministic", () => {
 		);
 	});
 
+	it("accepts transcript when user speaks a long sentence (evidence drifts past postroll)", async () => {
+		process.env.AGENT_VOICE_ECHO_GUARD_MS = "80";
+		process.env.AGENT_VOICE_SPEECH_EVIDENCE_POSTROLL_MS = "1500";
+		const engine = new FakeCaptureEngine();
+
+		const transcript = await ask("question", {
+			timeout: 5,
+			createAudioEngine: () => engine,
+			createSession: createScriptedSession((options) => {
+				// Assistant speaks
+				setTimeout(() => options.onAudioDelta(Buffer.alloc(3200)), 10);
+				setTimeout(() => options.onInitialResponseDone(), 20);
+
+				// User starts speaking — near-end evidence before speechStarted
+				setTimeout(
+					() => engine.pushProcessedFrame(createSpeechLikeFrame()),
+					200,
+				);
+				setTimeout(() => options.onSpeechStarted(), 250);
+
+				// User continues speaking for a long time — evidence keeps updating
+				for (let i = 300; i <= 3000; i += 100) {
+					setTimeout(
+						() => engine.pushProcessedFrame(createSpeechLikeFrame()),
+						i,
+					);
+				}
+
+				// Transcript arrives well after postroll window
+				// nearEndEvidenceAtMs will have drifted to ~3000ms
+				// which is past speechStartedAtMs + 1500ms postroll
+				setTimeout(
+					() => options.onTranscript("this is a long user response"),
+					3200,
+				);
+			}),
+		});
+
+		expect(transcript).toBe("this is a long user response");
+	});
+
 	it("keeps self-hearing false-positive rate at 0/20 across barge-in timing jitter", async () => {
 		process.env.AGENT_VOICE_ECHO_GUARD_MS = "80";
 		process.env.AGENT_VOICE_MIN_SPEECH_RMS = "550";

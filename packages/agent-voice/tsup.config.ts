@@ -16,4 +16,10 @@ export default defineConfig([
 		platform: "node",
 		banner: { js: "#!/usr/bin/env node" },
 	},
+	{
+		entry: { daemon: "src/daemon.ts" },
+		format: "esm",
+		target: "node22",
+		platform: "node",
+	},
 ]);
