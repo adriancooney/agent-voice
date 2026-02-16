@@ -222,14 +222,47 @@ program
 	.description("Speak a message without listening for a response")
 	.option("-m, --message <text>", "Text message to speak")
 	.option("--voice <name>", "OpenAI voice", defaultVoice)
+	.option(
+		"--debug-audio-dir <dir>",
+		"Write say audio debug WAV to this directory",
+	)
 	.action(async (opts) => {
 		const { say, writeError } = await withSuppressedNativeOutput();
+		const assistantChunks: Buffer[] = [];
 		try {
 			const auth = resolveAuth();
 			const message = await getMessage(opts.message);
-			await say(message, { voice: opts.voice, auth });
+			await say(message, {
+				voice: opts.voice,
+				auth,
+				onAssistantAudio: opts.debugAudioDir
+					? (pcm16) => assistantChunks.push(Buffer.from(pcm16))
+					: undefined,
+			});
+			if (opts.debugAudioDir) {
+				mkdirSync(opts.debugAudioDir, { recursive: true });
+				const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+				const file = join(
+					opts.debugAudioDir,
+					`say-${stamp}-assistant-output.wav`,
+				);
+				writeFileSync(file, createWavBuffer(Buffer.concat(assistantChunks)));
+				writeError(`debug audio written:\n${file}`);
+			}
 			process.exit(0);
 		} catch (err: unknown) {
+			if (opts.debugAudioDir && assistantChunks.length > 0) {
+				try {
+					mkdirSync(opts.debugAudioDir, { recursive: true });
+					const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+					const file = join(
+						opts.debugAudioDir,
+						`say-${stamp}-assistant-output.wav`,
+					);
+					writeFileSync(file, createWavBuffer(Buffer.concat(assistantChunks)));
+					writeError(`debug audio written:\n${file}`);
+				} catch {}
+			}
 			writeError(`${err instanceof Error ? err.message : err}`);
 			process.exit(1);
 		}

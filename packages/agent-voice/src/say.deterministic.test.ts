@@ -105,4 +105,23 @@ describe("say deterministic", () => {
 
 		expect(engine.stoppedPendingPlaybackSamples).toBe(0);
 	});
+
+	it("does not resolve before wall-clock playout time when queue drains early", async () => {
+		const engine = new FakePlaybackEngine(100_000);
+		const startedAt = Date.now();
+		const oneSecondAudioBytes = 24_000 * 2;
+
+		await say("wall-clock", {
+			createAudioEngine: () => engine,
+			createSession: createScriptedSession((options) => {
+				options.onAudioDelta(Buffer.alloc(oneSecondAudioBytes));
+				setTimeout(() => {
+					options.onAudioDone?.();
+				}, 10);
+			}),
+		});
+
+		const elapsedMs = Date.now() - startedAt;
+		expect(elapsedMs).toBeGreaterThanOrEqual(1100);
+	});
 });

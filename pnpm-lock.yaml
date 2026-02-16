@@ -27,8 +27,8 @@ importers:
         specifier: ^8.2.0
         version: 8.2.0(@types/node@22.19.11)
       agent-voice-audio:
-        specifier: ^0.2.0
-        version: 0.2.0
+        specifier: ^0.2.1
+        version: 0.2.1
       commander:
         specifier: ^13.1.0
         version: 13.1.0
@@ -1095,8 +1095,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  agent-voice-audio@0.2.0:
-    resolution: {integrity: sha512-yKChkdCmJFluFSZVs4Bf3IOqbOztPBO6vlso8+hk7kGXlN9qswsuzKNjxlyiObfuoeWKsir/fC6/GviyNofm9A==}
+  agent-voice-audio@0.2.1:
+    resolution: {integrity: sha512-IRUA85rlW02V1qcBX6z4yRUgE+o70vQ98m3rrR/z4yxOQq9awcgAsKVWYS6libiMk9yXiCVQ1K5tErp7BYGKbQ==}
     cpu: [arm64]
     os: [darwin]
 
@@ -2939,7 +2939,7 @@ snapshots:
 
   acorn@8.15.0: {}
 
-  agent-voice-audio@0.2.0: {}
+  agent-voice-audio@0.2.1: {}
 
   agentkeepalive@4.6.0:
     dependencies:

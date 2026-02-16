@@ -1,5 +1,11 @@
 # agent-voice
 
+## 0.2.4
+
+### Patch Changes
+
+- Add --debug-audio-dir option to the say command for writing assistant audio output as WAV files
+
 ## 0.2.3
 
 ### Patch Changes

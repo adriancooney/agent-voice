@@ -29,6 +29,7 @@ export type SayOptions = {
 		enableAec?: boolean;
 		streamDelayMs?: number;
 	}) => RustAudioEngine;
+	onAssistantAudio?: (pcm16: Buffer) => void;
 	onTrace?: (event: {
 		atMs: number;
 		event: string;
@@ -46,6 +47,7 @@ export async function say(
 		auth,
 		createSession,
 		createAudioEngine,
+		onAssistantAudio,
 		onTrace,
 	} = options;
 	const { AudioEngine } = require("agent-voice-audio") as {
@@ -79,6 +81,9 @@ export async function say(
 		let completionTailTimer: ReturnType<typeof setTimeout> | null = null;
 		let drainPollTimer: ReturnType<typeof setInterval> | null = null;
 		let drainDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
+		let playoutDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
+		let firstAudioAtMs = 0;
+		let totalReceivedSamples = 0;
 
 		function cleanup() {
 			if (cleaned) return;
@@ -87,6 +92,7 @@ export async function say(
 			if (completionTailTimer) clearTimeout(completionTailTimer);
 			if (drainPollTimer) clearInterval(drainPollTimer);
 			if (drainDeadlineTimer) clearTimeout(drainDeadlineTimer);
+			if (playoutDeadlineTimer) clearTimeout(playoutDeadlineTimer);
 			try {
 				engine.stop();
 				engine.close();
@@ -107,6 +113,29 @@ export async function say(
 			settled = true;
 			cleanup();
 			reject(error);
+		}
+
+		function waitForWallClockPlayout() {
+			if (settled) return;
+			if (firstAudioAtMs <= 0 || totalReceivedSamples <= 0) {
+				resolveOnce();
+				return;
+			}
+			const expectedPlayoutMs = Math.ceil(
+				(totalReceivedSamples / SAMPLE_RATE) * 1000,
+			);
+			const playoutTailMs = 140;
+			const dueAtMs = firstAudioAtMs + expectedPlayoutMs + playoutTailMs;
+			const waitMs = Math.max(0, dueAtMs - Date.now());
+			trace("playout:wall_clock_wait", {
+				totalReceivedSamples,
+				expectedPlayoutMs,
+				playoutTailMs,
+				waitMs,
+			});
+			playoutDeadlineTimer = setTimeout(() => {
+				resolveOnce();
+			}, waitMs);
 		}
 
 		function waitForPlaybackDrain() {
@@ -144,7 +173,7 @@ export async function say(
 				if (pending <= 0) {
 					zeroStreak += 1;
 					if (zeroStreak >= 3) {
-						resolveOnce();
+						waitForWallClockPlayout();
 					}
 					return;
 				}
@@ -153,13 +182,13 @@ export async function say(
 					trace("drain:no_progress_timeout", {
 						pendingPlaybackSamples: pending,
 					});
-					resolveOnce();
+					waitForWallClockPlayout();
 				}
 			}, 20);
 
 			drainDeadlineTimer = setTimeout(() => {
 				trace("drain:deadline");
-				resolveOnce();
+				waitForWallClockPlayout();
 			}, absoluteDeadlineMs);
 		}
 
@@ -178,7 +207,12 @@ export async function say(
 			ack: false,
 			auth,
 			onAudioDelta(pcm16) {
+				if (firstAudioAtMs <= 0) {
+					firstAudioAtMs = Date.now();
+				}
+				totalReceivedSamples += Math.floor(pcm16.length / 2);
 				engine.play(pcm16);
+				onAssistantAudio?.(pcm16);
 				trace("realtime:audio_delta", { bytes: pcm16.length });
 			},
 			onAudioDone() {
